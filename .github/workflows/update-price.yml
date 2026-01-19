@@ -33,9 +33,14 @@ jobs:
 
           echo "Bid (USD): $BID_USD"
 
-          # Convert USD/oz to EUR/g: (Price * 0.92) / 31.1035
+          # 3. Fetch Currency Data (USD -> EUR)
+          curl -s "https://open.er-api.com/v6/latest/USD" > currency.json
+          USD_TO_EUR=$(cat currency.json | jq -r '.rates.EUR')
+          echo "Exchange Rate (USD->EUR): $USD_TO_EUR"
+
+          # Convert USD/oz to EUR/g: (Price * Rate) / 31.1035
           # We use python for floating point math in the shell
-          PRICE_EUR_GRAM=$(python3 -c "print(round(($BID_USD * 0.92) / 31.1035, 2))")
+          PRICE_EUR_GRAM=$(python3 -c "print(round(($BID_USD * $USD_TO_EUR) / 31.1035, 2))")
           
           echo "Price (EUR/g): $PRICE_EUR_GRAM"
 
