@@ -1,0 +1,57 @@
+name: Update Gold Price
+on:
+  schedule:
+    - cron: '0 * * * *' # Runs every hour at minute 0
+  workflow_dispatch: # Allows you to run it manually to test
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Fetch Price and Save
+        run: |
+          # 1. Fetch Data from Swissquote
+          # Note: We use curl with a user-agent to look like a browser
+          curl -s -H "User-Agent: Mozilla/5.0" \
+          "https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD" \
+          > raw_response.json
+
+          # 2. Extract Bid Price & Convert to EUR (Using jq)
+          # We search for the 'standard' spread profile across all returned platforms.
+          BID_USD=$(cat raw_response.json | jq -r '[.[].spreadProfilePrices[] | select(.spreadProfile=="standard")][0].bid')
+          
+          # Fallback if standard is not found (use the very first bid available)
+          if [ "$BID_USD" == "null" ] || [ -z "$BID_USD" ]; then
+            echo "Standard profile not found, falling back to first available bid."
+            BID_USD=$(cat raw_response.json | jq -r '.[0].spreadProfilePrices[0].bid')
+          fi
+
+          echo "Bid (USD): $BID_USD"
+
+          # Convert USD/oz to EUR/g: (Price * 0.92) / 31.1035
+          # We use python for floating point math in the shell
+          PRICE_EUR_GRAM=$(python3 -c "print(round(($BID_USD * 0.92) / 31.1035, 2))")
+          
+          echo "Price (EUR/g): $PRICE_EUR_GRAM"
+
+          # 3. Create the clean JSON
+          # Using 'latest.json' as per the code snippet
+          echo "{ \"price_24k\": $PRICE_EUR_GRAM, \"updated_at\": \"$(date -u)\" }" > latest.json
+
+      - name: Commit and Push
+        run: |
+          git config user.name "GoldBot"
+          git config user.email "bot@vendresonor.net"
+          git add latest.json
+          # Only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Update gold price: €${PRICE_EUR_GRAM}"
+            git push
+          fi
