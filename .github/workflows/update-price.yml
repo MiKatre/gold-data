@@ -42,6 +42,9 @@ jobs:
           # 3. Create the clean JSON
           # Using 'latest.json' as per the code snippet
           echo "{ \"price_24k\": $PRICE_EUR_GRAM, \"updated_at\": \"$(date -u)\" }" > latest.json
+          
+          # Export to GITHUB_ENV for the next step
+          echo "PRICE_EUR_GRAM=$PRICE_EUR_GRAM" >> $GITHUB_ENV
 
       - name: Commit and Push
         run: |
